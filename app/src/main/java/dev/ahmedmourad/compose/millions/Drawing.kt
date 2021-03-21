@@ -1,14 +1,14 @@
 package dev.ahmedmourad.compose.millions
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
@@ -19,31 +19,17 @@ import kotlin.math.sin
 
 @Composable
 fun Clock(modifier: Modifier = Modifier, clock: Clock) {
-    val spacing = 0f
-    val columnsCount = clock.digits.rows.first().fragments.size
-    val rowsCount = clock.digits.rows.size
-    val accHorizontalSpacing = spacing * (columnsCount - 1)
-    val accVerticalSpacing = spacing * (rowsCount - 1)
-    fun findDiameter(size: Size): Float {
-        val candidateWidth = (size.width - accHorizontalSpacing) / columnsCount
-        val candidateHeight = (size.height - accVerticalSpacing) / rowsCount
-        return minOf(candidateWidth, candidateHeight)
-    }
-    Column {
-        clock.digits.rows.forEachIndexed { rowIndex, row ->
-            Row {
-                row.fragments.forEachIndexed { columnIndex, fragment ->
-                    fun findCenterAndRadius(size: Size): Pair<Offset, Float> {
-                        val diameter = findDiameter(size)
-                        val radius = diameter / 2
-                        return Offset(
-                            columnIndex * diameter + columnIndex * spacing + radius,
-                            rowIndex * diameter + rowIndex * spacing + radius
-                        ) to radius
-                    }
-                    DigitFragment(modifier,  fragment) {
-                        findCenterAndRadius(it)
-                    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .wrapContentHeight()) {
+        clock.digits.rows.forEach { row ->
+            Row(
+                Modifier
+                    .wrapContentHeight()
+                    .fillMaxWidth()) {
+                row.fragments.forEach { fragment ->
+                    DigitFragment(Modifier.weight(1f), fragment)
                 }
             }
         }
@@ -53,17 +39,25 @@ fun Clock(modifier: Modifier = Modifier, clock: Clock) {
 @Composable
 fun DigitFragment(
     modifier: Modifier = Modifier,
-    fragment: DigitFragment,
-    findCenterAndRadius: (Size) -> Pair<Offset, Float>
+    fragment: DigitFragment
 ) {
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val (center, radius) = findCenterAndRadius(size)
+    val angle1 by animateFloatAsState(
+        targetValue = fragment.firstAngle.unaryMinus().toFloat().rad(),
+        animationSpec = tween(700)
+    )
+    val angle2 by animateFloatAsState(
+        targetValue = fragment.secondAngle.unaryMinus().toFloat().rad(),
+        animationSpec = tween(700)
+    )
+    Canvas(modifier = modifier.aspectRatio(1f)) {
+        val center = size.center
+        val radius = size.minDimension / 2
         drawCircle(Color.Gray, radius, center, style = Stroke(2f))
-        val newX1 = center.x + radius * cos(fragment.firstAngle.unaryMinus().toFloat().rad())
-        val newY1 = center.y + radius * sin(fragment.firstAngle.unaryMinus().toFloat().rad())
+        val newX1 = center.x + radius * cos(angle1)
+        val newY1 = center.y + radius * sin(angle1)
         drawLine(Color.Black, center, Offset(newX1, newY1), 3f)
-        val newX2 = center.x + radius * cos(fragment.secondAngle.unaryMinus().toFloat().rad())
-        val newY2 = center.y + radius * sin(fragment.secondAngle.unaryMinus().toFloat().rad())
+        val newX2 = center.x + radius * cos(angle2)
+        val newY2 = center.y + radius * sin(angle2)
         drawLine(Color.Black, center, Offset(newX2, newY2), 3f)
     }
 }
@@ -82,17 +76,6 @@ fun createClock(duration: Duration?): Clock {
         Digits.from(firstSecond),
         Digits.from(secondSecond)
     )
-}
-
-@Composable
-private fun getPaintFromCache(): Paint {
-    return remember {
-        Paint().apply {
-            strokeCap = StrokeCap.Round
-            style = PaintingStyle.Stroke
-            strokeWidth = 8.0f
-        }
-    }
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFFFFFFFF)

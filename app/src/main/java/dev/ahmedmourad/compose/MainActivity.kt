@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val now = remember { System.currentTimeMillis() }
+            val now = remember { System.currentTimeMillis() + 3 }
             val clock by ticker(
                 1000,
                 3000,
