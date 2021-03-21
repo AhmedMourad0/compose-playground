@@ -1,7 +1,5 @@
 package dev.ahmedmourad.compose.millions
 
-import androidx.compose.runtime.State
-
 data class Duration(val minutes: Int, val seconds: Int) {
     constructor(seconds: Int) : this(seconds / 60, seconds % 60)
 }

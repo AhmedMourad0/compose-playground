@@ -3,11 +3,9 @@ package dev.ahmedmourad.compose.millions
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -22,12 +20,14 @@ fun Clock(modifier: Modifier = Modifier, clock: Clock) {
     Column(
         modifier
             .fillMaxWidth()
-            .wrapContentHeight()) {
+            .wrapContentHeight()
+    ) {
         clock.digits.rows.forEach { row ->
             Row(
                 Modifier
                     .wrapContentHeight()
-                    .fillMaxWidth()) {
+                    .fillMaxWidth()
+            ) {
                 row.fragments.forEach { fragment ->
                     DigitFragment(Modifier.weight(1f), fragment)
                 }
@@ -65,7 +65,12 @@ fun DigitFragment(
 fun Float.rad() = this / 180 * PI.toFloat()
 
 fun createClock(duration: Duration?): Clock {
-    duration ?: return Clock(Digits.from(null), Digits.from(null), Digits.from(null), Digits.from(null))
+    duration ?: return Clock(
+        Digits.from(null),
+        Digits.from(null),
+        Digits.from(null),
+        Digits.from(null)
+    )
     val firstMinute = duration.minutes / 10
     val secondMinute = duration.minutes % 10
     val firstSecond = duration.seconds / 10

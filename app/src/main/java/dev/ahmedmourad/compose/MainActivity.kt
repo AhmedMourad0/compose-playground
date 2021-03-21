@@ -17,21 +17,28 @@ import dev.ahmedmourad.compose.ui.theme.ComposeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.channels.ticker
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 class MainActivity : AppCompatActivity() {
     @ObsoleteCoroutinesApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val now = remember { System.currentTimeMillis() + 3 }
+            var now = 0
             val clock by ticker(
                 1000,
-                3000,
+                0,
                 Dispatchers.Default
             ).consumeAsFlow().map {
-                createClock(Duration(((System.currentTimeMillis() - now) / 1000).toInt()))
+                createClock(Duration(now++))
+            }.onStart {
+                emit(createClock(null))
+                delay(3000)
+                emit(createClock(Duration(0)))
+                delay(2000)
             }.collectAsState(initial = createClock(null))
             ComposeTheme {
                 Surface(color = MaterialTheme.colors.background) {
