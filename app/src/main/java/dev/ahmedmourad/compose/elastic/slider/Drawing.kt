@@ -1,92 +1,157 @@
 package dev.ahmedmourad.compose.elastic.slider
 
+import android.util.Log
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.consumeAllChanges
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.*
-import dev.ahmedmourad.compose.millions.Clock
-import dev.ahmedmourad.compose.millions.createClock
-import dev.ahmedmourad.compose.millions.rad
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import dev.ahmedmourad.compose.ui.theme.ComposeTheme
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlin.math.roundToInt
+
+private enum class Head {
+    LEFT, RIGHT
+}
 
 @Composable
 fun ElasticRangeBar(
-    min: Int,
-    max: Int,
-    range: IntRange,
+    v: State<ClosedRange<Float>>,
+    onMinChanged: (Float) -> Unit,
+    onMaxChanged: (Float) -> Unit,
+    range: ClosedRange<Float>,
     modifier: Modifier = Modifier,
-    steps: Iterable<Int> = listOf(range.first, range.last),
+    steps: Iterable<Float> = listOf(range.first, range.last),
     minThickness: Dp = 8.dp,
-    hintThickness: Dp = 1.dp
+    hintThickness: Dp = 1.dp,
+    padding: PaddingValues = PaddingValues(16.dp, 32.dp)
 ) {
+    val value by remember { v }
     val path = remember { Path() }
-    Canvas(modifier = modifier) {
-        val triggerRadius = size.height.dp / 2
-        val startOffset = ((min - range.first) / (range.last - range.first)) * size.width
-        val endOffset = ((max - range.first) / (range.last - range.first)) * size.width
+    var startOffset by remember { mutableStateOf(0f) }
+    var endOffset by remember { mutableStateOf(0f) }
+    var hintWidth by remember { mutableStateOf(0f) }
+    var triggerRadius by remember { mutableStateOf(0f) }
+    var headToMove by remember { mutableStateOf(Head.LEFT) }
+    var switchHead by remember { mutableStateOf(true) }
+    Canvas(modifier = modifier.pointerInput("Horizontal Drag Input") {
+        detectHorizontalDragGestures(
+            onDragStart = {
+                switchHead = false
+            }, onDragEnd = {
+                switchHead = true
+            }, onDragCancel = {
+                switchHead = true
+            }, onHorizontalDrag = { change, dragAmount ->
+                change.consumeAllChanges()
+                if (switchHead) {
+                    headToMove = when {
+                        value.first == value.last -> if (dragAmount > 0) Head.RIGHT else Head.LEFT
+                        change.previousPosition.x <= startOffset -> Head.LEFT
+                        change.previousPosition.x >= endOffset -> Head.RIGHT
+                        change.previousPosition.x - startOffset > endOffset - change.previousPosition.x -> Head.RIGHT
+                        else -> Head.LEFT
+                    }
+                }
+                when (headToMove) {
+                    Head.LEFT -> {
+                        val new = range.first +
+                                (change.position.x - triggerRadius) / hintWidth * (range.last - range.first)
+                        onMinChanged(new.coerceIn(range.first, value.last))
+                    }
+                    Head.RIGHT -> {
+                        val new = range.first +
+                                (change.position.x - triggerRadius) / hintWidth * (range.last - range.first)
+                        onMaxChanged(new.coerceIn(value.first, range.last))
+                    }
+                }
+            })
+    }.pointerInput("Click Input") {
+        detectTapGestures {
+            when {
+                it.x <= triggerRadius -> {
+                    onMinChanged(range.first)
+                }
+                it.x >= hintWidth + triggerRadius -> {
+                    onMaxChanged(range.last)
+                }
+                (it.x <= startOffset) || it.x - startOffset < endOffset - it.x -> {
+                    val new = range.first +
+                            (it.x - triggerRadius) / hintWidth * (range.last - range.first)
+                    onMinChanged(new)
+                }
+                else -> {
+                    val new = range.first +
+                            (it.x - triggerRadius) / hintWidth * (range.last - range.first)
+                    onMaxChanged(new)
+                }
+            }
+        }
+    }.padding(padding)) {
+        triggerRadius = size.height / 2
+        hintWidth = size.width - triggerRadius * 2
+        startOffset = triggerRadius +
+                ((value.first - range.first) / (range.last - range.first)) * hintWidth
+        endOffset = triggerRadius +
+                ((value.last - range.first) / (range.last - range.first)) * hintWidth
+        val centerX = (endOffset + startOffset) / 2
+        val consumedRatio = (endOffset - startOffset) / hintWidth
+        val thickness = minThickness.value +
+                (1 - consumedRatio) * (triggerRadius * 2 - minThickness.value)
         drawLine(
             Color.Gray,
-            center.copy(x = 0f),
-            center.copy(x = size.width),
+            center.copy(x = triggerRadius),
+            center.copy(x = size.width - triggerRadius),
             hintThickness.value
         )
-        drawCircle(
-            Color.Blue,
-            triggerRadius.value,
-            center.copy(x = triggerRadius.value)
-        )
-        drawCircle(
-            Color.Blue,
-            triggerRadius.value,
-            center.copy(x = size.width - triggerRadius.value)
-        )
+        val leftArcRect = Rect(Offset(startOffset, center.y), triggerRadius)
+        val rightArcRect = Rect(Offset(endOffset, center.y), triggerRadius)
         path.apply {
             reset()
-            moveTo(triggerRadius.value, 0f)
+            moveTo(startOffset, size.height)
+            arcTo(leftArcRect, 90f, 180f, false)
             cubicTo(
-                triggerRadius.value * 2,
+                startOffset + triggerRadius,
                 0f,
-                triggerRadius.value,
-                center.y - minThickness.value / 2,
-                center.x,
-                center.y - minThickness.value / 2
+                startOffset,
+                center.y - thickness / 2,
+                centerX,
+                center.y - thickness / 2
             )
             cubicTo(
-                size.width - triggerRadius.value,
-                center.y - minThickness.value / 2,
-                size.width - triggerRadius.value * 2,
+                endOffset,
+                center.y - thickness / 2,
+                endOffset - triggerRadius,
                 0f,
-                size.width - triggerRadius.value,
+                endOffset,
                 0f
             )
-            lineTo(
-                size.width - triggerRadius.value,
-                size.height
+            arcTo(rightArcRect, 270f, 180f, false)
+            cubicTo(
+                endOffset - triggerRadius,
+                size.height,
+                endOffset,
+                center.y + thickness / 2,
+                centerX,
+                center.y + thickness / 2
             )
             cubicTo(
-                size.width - triggerRadius.value * 2,
+                startOffset,
+                center.y + thickness / 2,
+                startOffset + triggerRadius,
                 size.height,
-                size.width - triggerRadius.value,
-                center.y + minThickness.value / 2,
-                center.x,
-                center.y + minThickness.value / 2
-            )
-            cubicTo(
-                triggerRadius.value,
-                center.y + minThickness.value / 2,
-                triggerRadius.value * 2,
-                size.height,
-                triggerRadius.value,
+                startOffset,
                 size.height
             )
             close()
@@ -105,10 +170,11 @@ fun ElasticRangeBar(
 fun DefaultPreview() {
     ComposeTheme {
         ElasticRangeBar(
-            min = 25,
-            max = 75,
-            range = 0..100,
-            steps = listOf(0, 10, 20, 30, 40, 50, 100),
+            v = mutableStateOf(25f..75f),
+            onMinChanged = { },
+            onMaxChanged = { },
+            range = 0f..100f,
+            steps = listOf(0f, 10f, 20f, 30f, 40f, 50f, 100f),
             hintThickness = 1.dp,
             modifier = Modifier
                 .padding(16.dp)
@@ -116,3 +182,9 @@ fun DefaultPreview() {
         )
     }
 }
+
+val <T : Comparable<T>> ClosedRange<T>.first
+    get() = this.start
+
+val <T : Comparable<T>> ClosedRange<T>.last
+    get() = this.endInclusive
