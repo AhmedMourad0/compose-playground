@@ -1,7 +1,16 @@
 package dev.ahmedmourad.compose.millions
 
 data class Duration(val minutes: Int, val seconds: Int) {
-    constructor(seconds: Int) : this(seconds / 60, seconds % 60)
+
+    init {
+        require(minutes in 0..99)
+        require(seconds in 0..99)
+    }
+
+    constructor(seconds: Int) : this(
+        (seconds / 60).coerceAtMost(99),
+        (seconds % 60).coerceAtMost(99)
+    )
 }
 
 data class Clock(
