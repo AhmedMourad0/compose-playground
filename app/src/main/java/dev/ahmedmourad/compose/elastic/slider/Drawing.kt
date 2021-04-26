@@ -1,162 +1,169 @@
 package dev.ahmedmourad.compose.elastic.slider
 
-import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.Button
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.ahmedmourad.compose.ui.theme.ComposeTheme
-import kotlin.math.roundToInt
+import dev.ahmedmourad.compose.ui.theme.*
 
 private enum class Head {
-    LEFT, RIGHT
+    LOWER, UPPER
 }
 
 @Composable
 fun ElasticRangeBar(
-    v: State<ClosedRange<Float>>,
-    onMinChanged: (Float) -> Unit,
-    onMaxChanged: (Float) -> Unit,
+    lower: Float,
+    upper: Float,
+    onLowerChanged: (Float) -> Unit,
+    onUpperChanged: (Float) -> Unit,
     range: ClosedRange<Float>,
     modifier: Modifier = Modifier,
     steps: Iterable<Float> = listOf(range.first, range.last),
-    minThickness: Dp = 8.dp,
-    hintThickness: Dp = 1.dp,
-    padding: PaddingValues = PaddingValues(16.dp, 32.dp)
+    minBarThickness: Dp = 6.dp,
+    lineThickness: Dp = 1.dp,
+    padding: PaddingValues = PaddingValues(16.dp, 32.dp),
+    barColor: Color = Purple500,
+    lineColor: Color = Color.Gray
 ) {
-    val value by remember { v }
+    val lowerValue by rememberUpdatedState(lower)
+    val upperValue by rememberUpdatedState(upper)
     val path = remember { Path() }
-    var startOffset by remember { mutableStateOf(0f) }
-    var endOffset by remember { mutableStateOf(0f) }
-    var hintWidth by remember { mutableStateOf(0f) }
-    var triggerRadius by remember { mutableStateOf(0f) }
-    var headToMove by remember { mutableStateOf(Head.LEFT) }
+    var lowerOffset by remember { mutableStateOf(0f) }
+    var upperOffset by remember { mutableStateOf(0f) }
+    var lineWidth by remember { mutableStateOf(0f) }
+    var headRadius by remember { mutableStateOf(0f) }
+    var headToMove by remember { mutableStateOf(Head.LOWER) }
     var switchHead by remember { mutableStateOf(true) }
     Canvas(modifier = modifier.pointerInput("Horizontal Drag Input") {
-        detectHorizontalDragGestures(
-            onDragStart = {
-                switchHead = false
-            }, onDragEnd = {
-                switchHead = true
-            }, onDragCancel = {
-                switchHead = true
-            }, onHorizontalDrag = { change, dragAmount ->
-                change.consumeAllChanges()
-                if (switchHead) {
-                    headToMove = when {
-                        value.first == value.last -> if (dragAmount > 0) Head.RIGHT else Head.LEFT
-                        change.previousPosition.x <= startOffset -> Head.LEFT
-                        change.previousPosition.x >= endOffset -> Head.RIGHT
-                        change.previousPosition.x - startOffset > endOffset - change.previousPosition.x -> Head.RIGHT
-                        else -> Head.LEFT
-                    }
+        detectHorizontalDragGestures(onDragStart = {
+            switchHead = false
+        }, onDragEnd = {
+            switchHead = true
+        }, onDragCancel = {
+            switchHead = true
+        }, onHorizontalDrag = { change, dragAmount ->
+            change.consumeAllChanges()
+            if (switchHead) {
+                headToMove = when {
+                    lowerValue == upperValue -> if (dragAmount > 0) Head.UPPER else Head.LOWER
+                    change.previousPosition.x <= lowerOffset -> Head.LOWER
+                    change.previousPosition.x >= upperOffset -> Head.UPPER
+                    change.previousPosition.x - lowerOffset > upperOffset - change.previousPosition.x -> Head.UPPER
+                    else -> Head.LOWER
                 }
-                when (headToMove) {
-                    Head.LEFT -> {
-                        val new = range.first +
-                                (change.position.x - triggerRadius) / hintWidth * (range.last - range.first)
-                        onMinChanged(new.coerceIn(range.first, value.last))
-                    }
-                    Head.RIGHT -> {
-                        val new = range.first +
-                                (change.position.x - triggerRadius) / hintWidth * (range.last - range.first)
-                        onMaxChanged(new.coerceIn(value.first, range.last))
-                    }
+            }
+            when (headToMove) {
+                Head.LOWER -> {
+                    val new = range.first +
+                            (change.position.x - headRadius) / lineWidth * (range.last - range.first)
+                    onLowerChanged(new.coerceIn(range.first, upperValue))
                 }
-            })
+                Head.UPPER -> {
+                    val new = range.first +
+                            (change.position.x - headRadius) / lineWidth * (range.last - range.first)
+                    onUpperChanged(new.coerceIn(lowerValue, range.last))
+                }
+            }
+        })
     }.pointerInput("Click Input") {
         detectTapGestures {
             when {
-                it.x <= triggerRadius -> {
-                    onMinChanged(range.first)
+                it.x <= headRadius -> {
+                    onLowerChanged(range.first)
                 }
-                it.x >= hintWidth + triggerRadius -> {
-                    onMaxChanged(range.last)
+                it.x >= lineWidth + headRadius -> {
+                    onUpperChanged(range.last)
                 }
-                (it.x <= startOffset) || it.x - startOffset < endOffset - it.x -> {
+                (it.x <= lowerOffset) || it.x - lowerOffset < upperOffset - it.x -> {
                     val new = range.first +
-                            (it.x - triggerRadius) / hintWidth * (range.last - range.first)
-                    onMinChanged(new)
+                            (it.x - headRadius) / lineWidth * (range.last - range.first)
+                    onLowerChanged(new)
                 }
                 else -> {
                     val new = range.first +
-                            (it.x - triggerRadius) / hintWidth * (range.last - range.first)
-                    onMaxChanged(new)
+                            (it.x - headRadius) / lineWidth * (range.last - range.first)
+                    onUpperChanged(new)
                 }
             }
         }
     }.padding(padding)) {
-        triggerRadius = size.height / 2
-        hintWidth = size.width - triggerRadius * 2
-        startOffset = triggerRadius +
-                ((value.first - range.first) / (range.last - range.first)) * hintWidth
-        endOffset = triggerRadius +
-                ((value.last - range.first) / (range.last - range.first)) * hintWidth
-        val centerX = (endOffset + startOffset) / 2
-        val consumedRatio = (endOffset - startOffset) / hintWidth
-        val thickness = minThickness.value +
-                (1 - consumedRatio) * (triggerRadius * 2 - minThickness.value)
+
+        headRadius = size.height / 2
+        lineWidth = size.width - headRadius * 2
+        lowerOffset = headRadius +
+                ((lowerValue - range.first) / (range.last - range.first)) * lineWidth
+        upperOffset = headRadius +
+                ((upperValue - range.first) / (range.last - range.first)) * lineWidth
+        val centerX = (upperOffset + lowerOffset) / 2
+        val consumedRatio = (upperOffset - lowerOffset) / lineWidth
+        val thickness = minBarThickness.value +
+                (1 - consumedRatio) * (headRadius * 2 - minBarThickness.value)
         drawLine(
-            Color.Gray,
-            center.copy(x = triggerRadius),
-            center.copy(x = size.width - triggerRadius),
-            hintThickness.value
+            lineColor,
+            center.copy(x = headRadius),
+            center.copy(x = size.width - headRadius),
+            lineThickness.value
         )
-        val leftArcRect = Rect(Offset(startOffset, center.y), triggerRadius)
-        val rightArcRect = Rect(Offset(endOffset, center.y), triggerRadius)
+        val leftArcRect = Rect(Offset(lowerOffset, center.y), headRadius)
+        val rightArcRect = Rect(Offset(upperOffset, center.y), headRadius)
         path.apply {
             reset()
-            moveTo(startOffset, size.height)
+            moveTo(lowerOffset, size.height)
             arcTo(leftArcRect, 90f, 180f, false)
             cubicTo(
-                startOffset + triggerRadius,
+                lowerOffset + headRadius,
                 0f,
-                startOffset,
+                lowerOffset,
                 center.y - thickness / 2,
                 centerX,
                 center.y - thickness / 2
             )
             cubicTo(
-                endOffset,
+                upperOffset,
                 center.y - thickness / 2,
-                endOffset - triggerRadius,
+                upperOffset - headRadius,
                 0f,
-                endOffset,
+                upperOffset,
                 0f
             )
             arcTo(rightArcRect, 270f, 180f, false)
             cubicTo(
-                endOffset - triggerRadius,
+                upperOffset - headRadius,
                 size.height,
-                endOffset,
+                upperOffset,
                 center.y + thickness / 2,
                 centerX,
                 center.y + thickness / 2
             )
             cubicTo(
-                startOffset,
+                lowerOffset,
                 center.y + thickness / 2,
-                startOffset + triggerRadius,
+                lowerOffset + headRadius,
                 size.height,
-                startOffset,
+                lowerOffset,
                 size.height
             )
             close()
         }
-        drawPath(path, Color.Blue)
+        drawPath(path, barColor)
     }
 }
 
@@ -170,12 +177,13 @@ fun ElasticRangeBar(
 fun DefaultPreview() {
     ComposeTheme {
         ElasticRangeBar(
-            v = mutableStateOf(25f..75f),
-            onMinChanged = { },
-            onMaxChanged = { },
+            lower = 25f,
+            upper = 75f,
+            onLowerChanged = { },
+            onUpperChanged = { },
             range = 0f..100f,
             steps = listOf(0f, 10f, 20f, 30f, 40f, 50f, 100f),
-            hintThickness = 1.dp,
+            lineThickness = 1.dp,
             modifier = Modifier
                 .padding(16.dp)
                 .size(200.dp, 24.dp)

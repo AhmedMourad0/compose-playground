@@ -12,8 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.ahmedmourad.compose.elastic.slider.ElasticRangeBar
-import dev.ahmedmourad.compose.elastic.slider.first
-import dev.ahmedmourad.compose.elastic.slider.last
 import dev.ahmedmourad.compose.millions.Clock
 import dev.ahmedmourad.compose.millions.MillionTimesViewModel
 import dev.ahmedmourad.compose.millions.createClock
@@ -28,16 +26,18 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val value: MutableState<ClosedRange<Float>> = remember { mutableStateOf(25f..100f) }
+            var lower by remember { mutableStateOf(25f) }
+            var upper by remember { mutableStateOf(100f) }
             ComposeTheme {
                 Surface(color = MaterialTheme.colors.background) {
                     ElasticRangeBar(
-                        v = value,
-                        onMinChanged = { value.value = it..value.value.last },
-                        onMaxChanged = { value.value = value.value.first..it },
+                        lower = lower,
+                        upper = upper,
+                        onLowerChanged = { lower = it },
+                        onUpperChanged = { upper = it },
                         range = 25f..100f,
                         steps = listOf(0f, 10f, 20f, 30f, 40f, 50f, 100f),
-                        hintThickness = 1.dp,
+                        lineThickness = 1.dp,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(88.dp)
